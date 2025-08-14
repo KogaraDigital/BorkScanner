@@ -1,0 +1,52 @@
+File: C:\Users\Zwei\Pictures\Memes\test\redditsave.com_murica-9lhpxbmf74l91.mp4
+Severity: 10
+Details:
+[graph -1 input from stream 0:0 @ 00000219fd40d440] Invalid color space
+[vf#0:0 @ 00000219fcf8ee40] Error reinitializing filters!
+[vf#0:0 @ 00000219fcf8ee40] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 00000219fcf8ee40] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 00000219fcf8e5c0] Could not open encoder before EOF
+[vost#0:0/wrapped_avframe @ 00000219fcf8e5c0] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 00000219fcf8e5c0] Terminating thread with return code -22 (Invalid argument)
+[out#0/null @ 00000219fcee7440] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+File: C:\Users\Zwei\Pictures\Memes\test\redditsave.com_its_its_beautiful-1ydx767sijb91.mp4
+Severity: 10
+Details:
+[graph -1 input from stream 0:0 @ 000001b7490c0480] Invalid color space
+[vf#0:0 @ 000001b7490956c0] Error reinitializing filters!
+[vf#0:0 @ 000001b7490956c0] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 000001b7490956c0] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000001b749094d40] Could not open encoder before EOF
+[vost#0:0/wrapped_avframe @ 000001b749094d40] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000001b749094d40] Terminating thread with return code -22 (Invalid argument)
+[out#0/null @ 000001b74964ee80] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+File: C:\Users\Zwei\Pictures\Memes\test\RDT_20250420_142147.mp4
+Severity: 10
+Details:
+[graph -1 input from stream 0:0 @ 000001cecf88e600] Invalid color space
+[vf#0:0 @ 000001cecf703880] Error reinitializing filters!
+[vf#0:0 @ 000001cecf703880] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 000001cecf703880] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000001cecf651900] Could not open encoder before EOF
+[vost#0:0/wrapped_avframe @ 000001cecf651900] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000001cecf651900] Terminating thread with return code -22 (Invalid argument)
+[out#0/null @ 000001cecf0ced80] Nothing was written into output file, because at least one of its streams received no packets.
+
+
+File: C:\Users\Zwei\Pictures\Memes\test\redditsave.com_kat-3aoo30buaie91.mp4
+Severity: 10
+Details:
+[graph -1 input from stream 0:0 @ 000001e9e8a43b00] Invalid color space
+[vf#0:0 @ 000001e9e8241d00] Error reinitializing filters!
+[vf#0:0 @ 000001e9e8241d00] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 000001e9e8241d00] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000001e9e823c240] Could not open encoder before EOF
+[vost#0:0/wrapped_avframe @ 000001e9e823c240] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000001e9e823c240] Terminating thread with return code -22 (Invalid argument)
+[out#0/null @ 000001e9e88e3c40] Nothing was written into output file, because at least one of its streams received no packets.
+
+

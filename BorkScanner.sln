@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BorkScanner", "BorkScanner.csproj", "{33FA85E7-F078-D3BD-F6BA-ECE81558E40F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{33FA85E7-F078-D3BD-F6BA-ECE81558E40F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33FA85E7-F078-D3BD-F6BA-ECE81558E40F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33FA85E7-F078-D3BD-F6BA-ECE81558E40F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33FA85E7-F078-D3BD-F6BA-ECE81558E40F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EF0FCF61-0557-4040-963A-C76D684C8166}
+	EndGlobalSection
+EndGlobal

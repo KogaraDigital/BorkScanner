@@ -1,0 +1,13 @@
+File: C:\Users\Zwei\Pictures\Memes\test\redditsave.com_murica-9lhpxbmf74l91.mp4
+Severity: 10
+Details:
+[graph -1 input from stream 0:0 @ 000002dda41480c0] Invalid color space
+[vf#0:0 @ 000002dda39aee40] Error reinitializing filters!
+[vf#0:0 @ 000002dda39aee40] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 000002dda39aee40] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000002dda39ae5c0] Could not open encoder before EOF
+[vost#0:0/wrapped_avframe @ 000002dda39ae5c0] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/wrapped_avframe @ 000002dda39ae5c0] Terminating thread with return code -22 (Invalid argument)
+[out#0/null @ 000002dda3907440] Nothing was written into output file, because at least one of its streams received no packets.
+
+
