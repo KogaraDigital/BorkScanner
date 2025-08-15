@@ -1,4 +1,4 @@
-BorkScanner is a CLI tool for scanning media libraries.
+BorkScanner is a multithreaded CLI tool using FFMPEG for scanning media libraries.
 
 Usage
 
