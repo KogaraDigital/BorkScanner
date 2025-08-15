@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 class BorkScanner
@@ -18,148 +19,170 @@ class BorkScanner
         }
 
         string directory = args[0];
-        bool recursive = true; // default
-        string scanMode = "full"; // default
-        int maxThreads = Environment.ProcessorCount;
+        int maxThreads = Environment.ProcessorCount / 2;
+        int maxFFmpeg = 2; // Limit FFmpeg concurrency
 
-        // Scan info
-        Console.WriteLine($"Scanning directory: {directory}");
-        Console.WriteLine($"Recursive: {recursive}");
-        Console.WriteLine($"Scan mode: {scanMode}");
-        Console.WriteLine($"Using {maxThreads} parallel threads");
+        var formats = new[] { ".mp4", ".mkv", ".avi", ".jpg", ".png", ".gif", ".mp3", ".wav" };
 
-        var allFiles = Directory.EnumerateFiles(directory, "*.*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
-                                .Where(f => f.EndsWith(".mp4") || f.EndsWith(".mkv") || f.EndsWith(".avi") ||
-                                            f.EndsWith(".jpg") || f.EndsWith(".png") || f.EndsWith(".gif") ||
-                                            f.EndsWith(".mp3") || f.EndsWith(".wav"))
+        var allFiles = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories)
+                                .Where(f => formats.Any(ext => f.EndsWith(ext)))
                                 .ToList();
 
         int totalFiles = allFiles.Count;
         int processedFiles = 0;
 
-        var majorErrors = new ConcurrentBag<string>();
-        var minorErrors = new ConcurrentBag<string>();
+        // === SUMMARY INFO ===
+        Console.WriteLine($"Scanning directory: {directory}");
+        Console.WriteLine($"Using {maxThreads} parallel threads, max {maxFFmpeg} FFmpeg processes");
+        Console.WriteLine("=== Scan Summary ===");
+        Console.WriteLine($"Formats checked: {string.Join(", ", formats)}");
+        Console.WriteLine($"Total files found: {totalFiles}");
+        Console.WriteLine(); // Space before progress bar
+
+        var majorErrors = new ConcurrentBag<(string File, string Info)>();
+        var minorErrors = new ConcurrentBag<(string File, string Info)>();
         var cleanFiles = new ConcurrentBag<string>();
 
-        // Helper for color-coded output
         void WriteProgress()
         {
             lock (_consoleLock)
             {
-                Console.SetCursorPosition(0, Console.CursorTop);
+                int currentLine = Console.CursorTop;
+                Console.SetCursorPosition(0, currentLine);
                 int barWidth = 30;
                 double percent = (double)processedFiles / totalFiles;
                 int fill = (int)(percent * barWidth);
 
-                // Draw bar
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write("[");
                 Console.Write(new string('█', fill));
                 Console.Write(new string(' ', barWidth - fill));
                 Console.Write("] ");
 
-                // Percent text
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write($"{percent * 100:0.0}% | ");
 
-                // Counts
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.Write($"Major: {majorErrors.Count} | ");
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.Write($"Minor: {minorErrors.Count} | ");
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write($"Clean: {cleanFiles.Count}   "); // extra spaces to overwrite old text
+                Console.Write($"Clean: {cleanFiles.Count}   ");
 
                 Console.ResetColor();
             }
         }
 
-        await Task.WhenAll(allFiles.Select(file => Task.Run(async () =>
+        // First-file hack: log first file name
+        if (allFiles.Count > 0)
         {
-            bool major = false;
-            bool minor = false;
+            Console.WriteLine($"Scanning first file: {allFiles[0]}");
+        }
 
-            if (file.EndsWith(".mp4") || file.EndsWith(".mkv") || file.EndsWith(".avi"))
+        using var semaphore = new SemaphoreSlim(maxThreads);
+        using var ffmpegSemaphore = new SemaphoreSlim(maxFFmpeg);
+
+        var tasks = allFiles.Select(async file =>
+        {
+            await semaphore.WaitAsync();
+            try
             {
-                string cmd = scanMode == "quick"
-                    ? $"ffprobe -v error \"{file}\""
-                    : $"ffmpeg -v error -i \"{file}\" -f null -";
+                bool major = false;
+                bool minor = false;
+                string errorInfo = "";
 
-                var proc = new Process
+                if (file.EndsWith(".mp4") || file.EndsWith(".mkv") || file.EndsWith(".avi") ||
+                    file.EndsWith(".mp3") || file.EndsWith(".wav"))
                 {
-                    StartInfo = new ProcessStartInfo("cmd", $"/c {cmd}")
+                    await ffmpegSemaphore.WaitAsync();
+                    try
                     {
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
+                        string cmd = (file.EndsWith(".mp3") || file.EndsWith(".wav")) ?
+                                     $"-v error \"{file}\"" :
+                                     $"-v error -i \"{file}\" -f null - -threads 1";
+
+                        var proc = new Process
+                        {
+                            StartInfo = new ProcessStartInfo(
+                                file.EndsWith(".mp3") || file.EndsWith(".wav") ? "ffprobe" : "ffmpeg",
+                                cmd)
+                            {
+                                RedirectStandardError = true,
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            }
+                        };
+                        proc.Start();
+                        proc.PriorityClass = ProcessPriorityClass.BelowNormal;
+                        string errors = await proc.StandardError.ReadToEndAsync();
+                        proc.WaitForExit();
+
+                        if (!string.IsNullOrEmpty(errors))
+                        {
+                            major = file.EndsWith(".mp3") || file.EndsWith(".wav") ? true : errors.Contains("moov") || errors.Contains("could not");
+                            minor = !major;
+                            errorInfo = errors.Trim().Replace("\r\n", "; ");
+                        }
                     }
-                };
-                proc.Start();
-                string errors = await proc.StandardError.ReadToEndAsync();
-                proc.WaitForExit();
-
-                if (!string.IsNullOrEmpty(errors))
-                {
-                    major = errors.Contains("moov") || errors.Contains("could not");
-                    minor = !major;
-                }
-            }
-            else if (file.EndsWith(".jpg") || file.EndsWith(".png") || file.EndsWith(".gif"))
-            {
-                try
-                {
-                    using (var fs = File.OpenRead(file))
+                    finally
                     {
+                        ffmpegSemaphore.Release();
+                    }
+                }
+                else if (file.EndsWith(".jpg") || file.EndsWith(".png") || file.EndsWith(".gif"))
+                {
+                    try
+                    {
+                        using var fs = File.OpenRead(file);
                         byte[] buffer = new byte[10];
                         await fs.ReadAsync(buffer, 0, buffer.Length);
-                        if (buffer.All(b => b == 0)) major = true;
+                        if (buffer.All(b => b == 0))
+                        {
+                            major = true;
+                            errorInfo = "File content all zeros";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        major = true;
+                        errorInfo = ex.Message;
                     }
                 }
-                catch { major = true; }
+
+                if (major) majorErrors.Add((file, errorInfo));
+                else if (minor) minorErrors.Add((file, errorInfo));
+                else cleanFiles.Add(file);
+
+                Interlocked.Increment(ref processedFiles);
+                WriteProgress();
             }
-            else if (file.EndsWith(".mp3") || file.EndsWith(".wav"))
+            finally
             {
-                var proc = new Process
-                {
-                    StartInfo = new ProcessStartInfo("ffprobe", $"-v error \"{file}\"")
-                    {
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    }
-                };
-                proc.Start();
-                string errors = await proc.StandardError.ReadToEndAsync();
-                proc.WaitForExit();
-                if (!string.IsNullOrEmpty(errors)) major = true;
+                semaphore.Release();
             }
+        });
 
-            if (major) majorErrors.Add(file);
-            else if (minor) minorErrors.Add(file);
-            else cleanFiles.Add(file);
-
-            int done = System.Threading.Interlocked.Increment(ref processedFiles);
-            WriteProgress();
-        })));
+        await Task.WhenAll(tasks);
 
         Console.WriteLine("\nScan complete!");
 
-        string outputDir = Path.Combine(directory, "BorkScans");
+        string outputDir = Path.Combine(Environment.CurrentDirectory, "BorkScans");
         Directory.CreateDirectory(outputDir);
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string outputFile = Path.Combine(outputDir, $"BorkScan_{timestamp}.txt");
 
-        using (var writer = new StreamWriter(outputFile))
-        {
-            writer.WriteLine("=== MAJOR ERRORS ===");
-            foreach (var f in majorErrors) writer.WriteLine(f);
+        using var writer = new StreamWriter(outputFile);
+        writer.WriteLine("=== MAJOR ERRORS ===");
+        foreach (var e in majorErrors)
+            writer.WriteLine($"{e.File} | {e.Info}");
 
-            writer.WriteLine("\n=== MINOR ERRORS ===");
-            foreach (var f in minorErrors) writer.WriteLine(f);
+        writer.WriteLine("\n=== MINOR ERRORS ===");
+        foreach (var e in minorErrors)
+            writer.WriteLine($"{e.File} | {e.Info}");
 
-            writer.WriteLine("\n=== CLEAN FILES ===");
-            foreach (var f in cleanFiles) writer.WriteLine(f);
-        }
+        writer.WriteLine("\n=== CLEAN FILES ===");
+        foreach (var f in cleanFiles)
+            writer.WriteLine(f);
 
         Console.WriteLine($"Output written to: {outputFile}");
     }
