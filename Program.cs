@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Formats.Asn1;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -12,9 +13,10 @@ class BorkScanner
 
     static async Task Main(string[] args)
     {
-        if (args.Length < 2)
+        // Show usage if no args or --help flag provided
+        if (args.Length < 1 || args.Contains("--help"))
         {
-            Console.WriteLine("Usage: BorkScanner <directory> <full/quick>");
+            PrintHelp();
             return;
         }
 
@@ -25,52 +27,105 @@ class BorkScanner
         //  OPTIONAL
         //      --fileThreads (int) default: logical processors / 2
         //      --ffmpegInstances (int) default: 4
+        //      --recursive (flag) default: true, can be disabled with --norecursive
 
         string directory = args[0];
-        string fullScanArgument = (args[1].ToLower() == "fast") ? " " : " -frames:v 1 ";
 
-        int fileThreads = Environment.ProcessorCount / 2;
-        int ffmpegInstances = 4; // Limit FFmpeg concurrency
+        // Scan mode can be full (entire file) or fast (first frame only)
+        string scanMode = "full";
+        if (args.Length > 1 && (args[1].Equals("fast", StringComparison.OrdinalIgnoreCase) || args[1].Equals("full", StringComparison.OrdinalIgnoreCase)))
+            scanMode = args[1].ToLower();
 
+        // ffmpeg argument changes based on scan type
+        string ffmpegScanArg = (scanMode == "fast") ? " -frames:v 1 " : " ";
+
+        // Default concurrency limits
+        int fileThreads = Environment.ProcessorCount / 2;   // Controls number of files processed at once
+        int ffmpegInstances = 4;                           // Controls number of ffmpeg processes allowed
+        bool recursive = true;                             // Controls directory traversal
+
+        // Parse optional args
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i].ToLower())
             {
-                case "--filethreads":
-                    if (i + 1 < args.Length) fileThreads = int.Parse(args[++i]);
+                case "--filethreads":   //  Sets the amount of files to be processed concurrently, if larger than logical processor count, set it to that
+                    if (i + 1 < args.Length)
+                    {
+                        if (int.TryParse(args[i + 1], out int ft))
+                        {
+                            if (fileThreads > Environment.ProcessorCount)
+                            {
+                                fileThreads = Environment.ProcessorCount;
+                            }
+                            else
+                            {
+                                fileThreads = ft;
+                            }
+                            i++;
+                        }
+
+                        else
+                        {
+                            Console.WriteLine($"Warning: Invalid value for --filethreads: {args[i + 1]}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Warning: --filethreads flag requires a value");
+                    }
                     break;
+
                 case "--ffmpeginstances":
-                    if (i + 1 < args.Length) ffmpegInstances = int.Parse(args[++i]);
+                    if (i + 1 < args.Length)
+                    {
+                        if (int.TryParse(args[i + 1], out int fi))
+                        {
+                            ffmpegInstances = fi;
+                            i++;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Warning: Invalid value for --ffmpeginstances: {args[i + 1]}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Warning: --ffmpeginstances flag requires a value");
+                    }
+                    break;
+
+                case "--recursive":
+                    recursive = true;
+                    break;
+
+                case "--norecursive":
+                    recursive = false;
+                    break;
+
+                default:
+                    if (args[i].StartsWith("--") && args[i].Contains("="))
+                        Console.WriteLine($"Warning: Please separate flag and value: '{args[i]}' should be '--flag value'");
                     break;
             }
         }
 
-
-
-        //var formats = new[] { ".mp4", ".mkv", ".avi", ".jpg", ".png", ".gif", ".mp3", ".wav", ".jpeg" };
-
+        // File extensions supported for scanning
         var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".mp4", ".mkv", ".avi", ".mov", ".webm"
         };
 
-        // Unused currently, but may be needed if adding image validation in future
-        /*var imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ".jpg", ".jpeg", ".png", ".gif"
-        };*/
+        var allExtensions = videoExtensions; // Easy expansion later if adding image checking
 
-        // Smash all extensions into one HashSet for full scans, image extension is commented out so this does nothing right now, XD
-        var allExtensions = videoExtensions
-        //.Concat(imageExtensions)
-        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Create a directory of all files within the specified directory string
-        // TODO: Create argument to toggle recursive search
+        // Enumerate files — wrap in try/catch for directory/permission issues
         List<string> allFiles;
         try
         {
-            allFiles = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories)
+            allFiles = Directory.EnumerateFiles(
+                    directory,
+                    "*.*",
+                    recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
                 .Where(f => allExtensions.Contains(Path.GetExtension(f)))
                 .ToList();
         }
@@ -85,31 +140,30 @@ class BorkScanner
             return;
         }
 
-
         int totalFiles = allFiles.Count;
         int processedFiles = 0;
 
         // Print scan info to console before starting scan
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($"Performing a {(args[1].ToLower() == "full" ? "full" : "quick")} scan of directory: {directory}");
+        Console.WriteLine($"Performing a {scanMode} scan of directory: {directory}");
         Console.WriteLine($"Using {fileThreads} parallel threads, max {ffmpegInstances} FFmpeg processes");
         Console.WriteLine("=== Scan Summary ===");
         Console.WriteLine($"Formats to scan: {string.Join(", ", allExtensions)}");
+        Console.WriteLine($"Recursive: {recursive}");
         Console.WriteLine($"Total files found: {totalFiles}");
-        Console.WriteLine($"FFmpeg Command: ffmpeg -v error -i <filename>{fullScanArgument}-f null -");
-        Console.WriteLine(); // Space before progress bar
+        Console.WriteLine($"FFmpeg Command: ffmpeg -v error -i <filename>{ffmpegScanArg}-f null -");
+        Console.WriteLine();
 
-        // ConcurrentBag is used to handle multiple threads dumping data at the same time
+        // Thread-safe collections for results
         var majorErrors = new ConcurrentBag<(string File, string Info)>();
         var minorErrors = new ConcurrentBag<(string File, string Info)>();
         var cleanFiles = new ConcurrentBag<string>();
 
-        // Logic for updating the UI while scanning
+        // Function to print a progress bar
         void UpdateProgressBar()
         {
             lock (_consoleLock)
             {
-                // Draw the progress bar
                 int currentLine = Console.CursorTop;
                 Console.SetCursorPosition(0, currentLine);
                 int barWidth = 30;
@@ -122,7 +176,6 @@ class BorkScanner
                 Console.Write(new string(' ', barWidth - fill));
                 Console.Write("] ");
 
-                // Display scan stats
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write($"{percent * 100:0.0}% | ");
 
@@ -137,18 +190,16 @@ class BorkScanner
             }
         }
 
-        // Prints a line to notify that the scan has started, useful for when the first files scanned take a while to confirm the system isn't hanging
         if (allFiles.Count > 0)
         {
             Console.WriteLine($"Scanning first file: {allFiles[0]}");
         }
 
-        // Semaphore is used to handle threads, this is set to 2 by default to limit CPU usage
+        // Semaphore is used to limit concurrent tasks
         using var semaphore = new SemaphoreSlim(fileThreads);
         using var ffmpegSemaphore = new SemaphoreSlim(ffmpegInstances);
 
-
-
+        // Process each file
         var tasks = allFiles.Select(async file =>
         {
             // Create main semaphore task
@@ -159,35 +210,43 @@ class BorkScanner
                 bool minor = false;
                 string errorInfo = "";
 
-                // Get the extension of the file
                 string ext = Path.GetExtension(file);
-                // If extension is valid begin check
                 if (videoExtensions.Contains(ext))
                 {
-                    // Create sub semaphore for ffmpeg limiting
+                    // Create sub semaphore for ffmpeg thread
                     await ffmpegSemaphore.WaitAsync();
                     try
                     {
                         var proc = new Process
                         {
-                            // Create the ffmpeg command
                             StartInfo = new ProcessStartInfo(
-                            "ffmpeg", $"-v error -i \"{file}\"{fullScanArgument}-f null -")// -threads 1")  // Uncomment if CPU usage becomes an issue, hacky fix
+                                "ffmpeg", $"-v error -i \"{file}\"{ffmpegScanArg}-f null -")
                             {
                                 RedirectStandardError = true,
                                 UseShellExecute = false,
                                 CreateNoWindow = true
                             }
                         };
-                        // Start the process with a lowered priority class, this only works for windows
-                        // TODO: Add configuriation for linux/macOS machines
-                        proc.Start();
-                        proc.PriorityClass = ProcessPriorityClass.BelowNormal;
+
+                        try
+                        {
+                            proc.Start();
+
+                            // Set process priority lower than normal
+                            // Windows only — Linux/macOS uses 'nice' externally
+#if WINDOWS
+                            proc.PriorityClass = ProcessPriorityClass.BelowNormal;
+#endif
+                        }
+                        catch
+                        {
+                            // On Linux/macOS priority may fail, ignore
+                        }
+
                         string errors = await proc.StandardError.ReadToEndAsync();
                         proc.WaitForExit();
 
                         // Filters out common major errors and marks anything else as minor
-                        // TODO: Add more robust filtering
                         if (!string.IsNullOrEmpty(errors))
                         {
                             major = errors.Contains("moov") || errors.Contains("could not");
@@ -200,11 +259,13 @@ class BorkScanner
                         ffmpegSemaphore.Release();
                     }
                 }
+
                 // Add errors to file if any exist then update UI with progress
                 if (major) majorErrors.Add((file, errorInfo));
                 else if (minor) minorErrors.Add((file, errorInfo));
                 else cleanFiles.Add(file);
 
+                // Safely increment across threads
                 Interlocked.Increment(ref processedFiles);
                 UpdateProgressBar();
             }
@@ -214,13 +275,11 @@ class BorkScanner
             }
         });
 
-        // Wait for all tasks to complete
         await Task.WhenAll(tasks);
 
-        // Output scan data once scanning is complete
         Console.WriteLine("\nScan complete!");
 
-        // Write the error file to a folder in the execution directory
+        // Output results
         string outputDir = Path.Combine(Environment.CurrentDirectory, "BorkScans");
         Directory.CreateDirectory(outputDir);
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -240,5 +299,20 @@ class BorkScanner
             writer.WriteLine(f);
 
         Console.WriteLine($"Output written to: {outputFile}");
+    }
+
+    private static void PrintHelp()
+    {
+        Console.WriteLine("BorkScanner - Scan video files for corruption using ffmpeg");
+        Console.WriteLine();
+        Console.WriteLine("Usage: BorkScanner <directory> [full|fast] [--filethreads <int>] [--ffmpeginstances <int>] [--recursive|--norecursive]");
+        Console.WriteLine();
+        Console.WriteLine("Arguments:");
+        Console.WriteLine("  <directory>           Directory to scan (required)");
+        Console.WriteLine("  full|fast             Scan mode. 'full' = entire file, 'fast' = first frame only (default: full)");
+        Console.WriteLine("  --filethreads <int>   Number of file-processing threads (default: logical processors / 2)");
+        Console.WriteLine("  --ffmpeginstances <int> Max number of concurrent ffmpeg processes (default: 4)");
+        Console.WriteLine("  --recursive           Scan subdirectories (default: true)");
+        Console.WriteLine("  --norecursive         Disable scanning subdirectories");
     }
 }
