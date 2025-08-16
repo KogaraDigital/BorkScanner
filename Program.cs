@@ -18,10 +18,34 @@ class BorkScanner
             return;
         }
 
+        // ARGUMENTS
+        //  REQUIRED
+        //      directory (filepath)
+        //      scan mode (full/fast) default: full
+        //  OPTIONAL
+        //      --fileThreads (int) default: logical processors / 2
+        //      --ffmpegInstances (int) default: 4
+
         string directory = args[0];
-        string fullScanArgument = (args[1].ToLower() == "full") ? " " : " -frames:v 1 ";
-        int maxThreads = Environment.ProcessorCount / 2;
-        int maxFFmpeg = 2; // Limit FFmpeg concurrency
+        string fullScanArgument = (args[1].ToLower() == "fast") ? " " : " -frames:v 1 ";
+
+        int fileThreads = Environment.ProcessorCount / 2;
+        int ffmpegInstances = 4; // Limit FFmpeg concurrency
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i].ToLower())
+            {
+                case "--filethreads":
+                    if (i + 1 < args.Length) fileThreads = int.Parse(args[++i]);
+                    break;
+                case "--ffmpeginstances":
+                    if (i + 1 < args.Length) ffmpegInstances = int.Parse(args[++i]);
+                    break;
+            }
+        }
+
+
 
         //var formats = new[] { ".mp4", ".mkv", ".avi", ".jpg", ".png", ".gif", ".mp3", ".wav", ".jpeg" };
 
@@ -43,31 +67,45 @@ class BorkScanner
 
         // Create a directory of all files within the specified directory string
         // TODO: Create argument to toggle recursive search
-        var allFiles = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories)
-        .Where(f => allExtensions.Contains(Path.GetExtension(f)))
-        .ToList();
+        List<string> allFiles;
+        try
+        {
+            allFiles = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories)
+                .Where(f => allExtensions.Contains(Path.GetExtension(f)))
+                .ToList();
+        }
+        catch (Exception ex) when (
+            ex is DirectoryNotFoundException ||
+            ex is UnauthorizedAccessException ||
+            ex is IOException)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Error: Could not access directory '{directory}'. {ex.Message}");
+            Console.ResetColor();
+            return;
+        }
+
 
         int totalFiles = allFiles.Count;
         int processedFiles = 0;
 
         // Print scan info to console before starting scan
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($"Scanning directory: {directory}");
-        Console.WriteLine($"Using {maxThreads} parallel threads, max {maxFFmpeg} FFmpeg processes");
+        Console.WriteLine($"Performing a {(args[1].ToLower() == "full" ? "full" : "quick")} scan of directory: {directory}");
+        Console.WriteLine($"Using {fileThreads} parallel threads, max {ffmpegInstances} FFmpeg processes");
         Console.WriteLine("=== Scan Summary ===");
         Console.WriteLine($"Formats to scan: {string.Join(", ", allExtensions)}");
         Console.WriteLine($"Total files found: {totalFiles}");
-        Console.WriteLine($"FFMPEG Command: ffmpeg -v error -i <filename>{fullScanArgument}-f null -");
+        Console.WriteLine($"FFmpeg Command: ffmpeg -v error -i <filename>{fullScanArgument}-f null -");
         Console.WriteLine(); // Space before progress bar
 
-        // Concurrent bag is used to handle multiple threads dumping data at the same time
-        // This creates an unordered collection of error infomation
+        // ConcurrentBag is used to handle multiple threads dumping data at the same time
         var majorErrors = new ConcurrentBag<(string File, string Info)>();
         var minorErrors = new ConcurrentBag<(string File, string Info)>();
         var cleanFiles = new ConcurrentBag<string>();
 
         // Logic for updating the UI while scanning
-        void WriteProgress()
+        void UpdateProgressBar()
         {
             lock (_consoleLock)
             {
@@ -106,13 +144,14 @@ class BorkScanner
         }
 
         // Semaphore is used to handle threads, this is set to 2 by default to limit CPU usage
-        using var semaphore = new SemaphoreSlim(maxThreads);
-        using var ffmpegSemaphore = new SemaphoreSlim(maxFFmpeg);
+        using var semaphore = new SemaphoreSlim(fileThreads);
+        using var ffmpegSemaphore = new SemaphoreSlim(ffmpegInstances);
 
 
 
         var tasks = allFiles.Select(async file =>
         {
+            // Create main semaphore task
             await semaphore.WaitAsync();
             try
             {
@@ -125,11 +164,13 @@ class BorkScanner
                 // If extension is valid begin check
                 if (videoExtensions.Contains(ext))
                 {
+                    // Create sub semaphore for ffmpeg limiting
                     await ffmpegSemaphore.WaitAsync();
                     try
                     {
                         var proc = new Process
                         {
+                            // Create the ffmpeg command
                             StartInfo = new ProcessStartInfo(
                             "ffmpeg", $"-v error -i \"{file}\"{fullScanArgument}-f null -")// -threads 1")  // Uncomment if CPU usage becomes an issue, hacky fix
                             {
@@ -138,12 +179,15 @@ class BorkScanner
                                 CreateNoWindow = true
                             }
                         };
-
+                        // Start the process with a lowered priority class, this only works for windows
+                        // TODO: Add configuriation for linux/macOS machines
                         proc.Start();
                         proc.PriorityClass = ProcessPriorityClass.BelowNormal;
                         string errors = await proc.StandardError.ReadToEndAsync();
                         proc.WaitForExit();
 
+                        // Filters out common major errors and marks anything else as minor
+                        // TODO: Add more robust filtering
                         if (!string.IsNullOrEmpty(errors))
                         {
                             major = errors.Contains("moov") || errors.Contains("could not");
@@ -156,13 +200,13 @@ class BorkScanner
                         ffmpegSemaphore.Release();
                     }
                 }
-
+                // Add errors to file if any exist then update UI with progress
                 if (major) majorErrors.Add((file, errorInfo));
                 else if (minor) minorErrors.Add((file, errorInfo));
                 else cleanFiles.Add(file);
 
                 Interlocked.Increment(ref processedFiles);
-                WriteProgress();
+                UpdateProgressBar();
             }
             finally
             {
@@ -170,7 +214,7 @@ class BorkScanner
             }
         });
 
-
+        // Wait for all tasks to complete
         await Task.WhenAll(tasks);
 
         // Output scan data once scanning is complete
