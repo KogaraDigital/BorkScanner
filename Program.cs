@@ -12,41 +12,66 @@ class BorkScanner
 
     static async Task Main(string[] args)
     {
-        if (args.Length == 0)
+        if (args.Length < 2)
         {
-            Console.WriteLine("Usage: BorkScanner <directory>");
+            Console.WriteLine("Usage: BorkScanner <directory> <full/quick>");
             return;
         }
 
         string directory = args[0];
+        string fullScanArgument = (args[1].ToLower() == "full") ? " " : " -frames:v 1 ";
         int maxThreads = Environment.ProcessorCount / 2;
         int maxFFmpeg = 2; // Limit FFmpeg concurrency
 
-        var formats = new[] { ".mp4", ".mkv", ".avi", ".jpg", ".png", ".gif", ".mp3", ".wav" };
+        //var formats = new[] { ".mp4", ".mkv", ".avi", ".jpg", ".png", ".gif", ".mp3", ".wav", ".jpeg" };
 
+        var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp4", ".mkv", ".avi", ".mov", ".webm"
+        };
+
+        // Unused currently, but may be needed if adding image validation in future
+        /*var imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".jpg", ".jpeg", ".png", ".gif"
+        };*/
+
+        // Smash all extensions into one HashSet for full scans, image extension is commented out so this does nothing right now, XD
+        var allExtensions = videoExtensions
+        //.Concat(imageExtensions)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Create a directory of all files within the specified directory string
+        // TODO: Create argument to toggle recursive search
         var allFiles = Directory.EnumerateFiles(directory, "*.*", SearchOption.AllDirectories)
-                                .Where(f => formats.Any(ext => f.EndsWith(ext)))
-                                .ToList();
+        .Where(f => allExtensions.Contains(Path.GetExtension(f)))
+        .ToList();
 
         int totalFiles = allFiles.Count;
         int processedFiles = 0;
 
-        // === SUMMARY INFO ===
+        // Print scan info to console before starting scan
+        Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine($"Scanning directory: {directory}");
         Console.WriteLine($"Using {maxThreads} parallel threads, max {maxFFmpeg} FFmpeg processes");
         Console.WriteLine("=== Scan Summary ===");
-        Console.WriteLine($"Formats checked: {string.Join(", ", formats)}");
+        Console.WriteLine($"Formats to scan: {string.Join(", ", allExtensions)}");
         Console.WriteLine($"Total files found: {totalFiles}");
+        Console.WriteLine($"FFMPEG Command: ffmpeg -v error -i <filename>{fullScanArgument}-f null -");
         Console.WriteLine(); // Space before progress bar
 
+        // Concurrent bag is used to handle multiple threads dumping data at the same time
+        // This creates an unordered collection of error infomation
         var majorErrors = new ConcurrentBag<(string File, string Info)>();
         var minorErrors = new ConcurrentBag<(string File, string Info)>();
         var cleanFiles = new ConcurrentBag<string>();
 
+        // Logic for updating the UI while scanning
         void WriteProgress()
         {
             lock (_consoleLock)
             {
+                // Draw the progress bar
                 int currentLine = Console.CursorTop;
                 Console.SetCursorPosition(0, currentLine);
                 int barWidth = 30;
@@ -59,6 +84,7 @@ class BorkScanner
                 Console.Write(new string(' ', barWidth - fill));
                 Console.Write("] ");
 
+                // Display scan stats
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write($"{percent * 100:0.0}% | ");
 
@@ -73,14 +99,17 @@ class BorkScanner
             }
         }
 
-        // First-file hack: log first file name
+        // Prints a line to notify that the scan has started, useful for when the first files scanned take a while to confirm the system isn't hanging
         if (allFiles.Count > 0)
         {
             Console.WriteLine($"Scanning first file: {allFiles[0]}");
         }
 
+        // Semaphore is used to handle threads, this is set to 2 by default to limit CPU usage
         using var semaphore = new SemaphoreSlim(maxThreads);
         using var ffmpegSemaphore = new SemaphoreSlim(maxFFmpeg);
+
+
 
         var tasks = allFiles.Select(async file =>
         {
@@ -91,27 +120,25 @@ class BorkScanner
                 bool minor = false;
                 string errorInfo = "";
 
-                if (file.EndsWith(".mp4") || file.EndsWith(".mkv") || file.EndsWith(".avi") ||
-                    file.EndsWith(".mp3") || file.EndsWith(".wav"))
+                // Get the extension of the file
+                string ext = Path.GetExtension(file);
+                // If extension is valid begin check
+                if (videoExtensions.Contains(ext))
                 {
                     await ffmpegSemaphore.WaitAsync();
                     try
                     {
-                        string cmd = (file.EndsWith(".mp3") || file.EndsWith(".wav")) ?
-                                     $"-v error \"{file}\"" :
-                                     $"-v error -i \"{file}\" -f null - -threads 1";
-
                         var proc = new Process
                         {
                             StartInfo = new ProcessStartInfo(
-                                file.EndsWith(".mp3") || file.EndsWith(".wav") ? "ffprobe" : "ffmpeg",
-                                cmd)
+                            "ffmpeg", $"-v error -i \"{file}\"{fullScanArgument}-f null -")// -threads 1")  // Uncomment if CPU usage becomes an issue, hacky fix
                             {
                                 RedirectStandardError = true,
                                 UseShellExecute = false,
                                 CreateNoWindow = true
                             }
                         };
+
                         proc.Start();
                         proc.PriorityClass = ProcessPriorityClass.BelowNormal;
                         string errors = await proc.StandardError.ReadToEndAsync();
@@ -119,7 +146,7 @@ class BorkScanner
 
                         if (!string.IsNullOrEmpty(errors))
                         {
-                            major = file.EndsWith(".mp3") || file.EndsWith(".wav") ? true : errors.Contains("moov") || errors.Contains("could not");
+                            major = errors.Contains("moov") || errors.Contains("could not");
                             minor = !major;
                             errorInfo = errors.Trim().Replace("\r\n", "; ");
                         }
@@ -127,25 +154,6 @@ class BorkScanner
                     finally
                     {
                         ffmpegSemaphore.Release();
-                    }
-                }
-                else if (file.EndsWith(".jpg") || file.EndsWith(".png") || file.EndsWith(".gif"))
-                {
-                    try
-                    {
-                        using var fs = File.OpenRead(file);
-                        byte[] buffer = new byte[10];
-                        await fs.ReadAsync(buffer, 0, buffer.Length);
-                        if (buffer.All(b => b == 0))
-                        {
-                            major = true;
-                            errorInfo = "File content all zeros";
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        major = true;
-                        errorInfo = ex.Message;
                     }
                 }
 
@@ -162,10 +170,13 @@ class BorkScanner
             }
         });
 
+
         await Task.WhenAll(tasks);
 
+        // Output scan data once scanning is complete
         Console.WriteLine("\nScan complete!");
 
+        // Write the error file to a folder in the execution directory
         string outputDir = Path.Combine(Environment.CurrentDirectory, "BorkScans");
         Directory.CreateDirectory(outputDir);
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
