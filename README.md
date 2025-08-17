@@ -23,8 +23,6 @@ Currently only for Linux, Windows version in progress.
   - Minor Errors (Issues but playable)
   - Clean (No issues)
 
-- Self-contained single-file executable for Linux, Windows, or macOS
-
 ---
 
 ## Installation
@@ -45,11 +43,13 @@ BorkScanner <directory> [full|fast] [--filethreads <int>] [--ffmpeginstances <in
 ```
 
 ### Arguments:
+```bash
   - <directory>              Directory to scan (required)
   - full|fast                Scan mode. 'full' = entire file, 'fast' = first frame only (default: full)
   - --filethreads <int>       Number of file-processing threads (default: logical processors / 2)
   - --ffmpeginstances <int>   Max number of concurrent ffmpeg processes (default: 4)
   - --recursive               Scan subdirectories (default)
   - --norecursive             Disable scanning subdirectories
+```
 
 
