@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Formats.Asn1;
 using System.IO;
@@ -9,7 +10,10 @@ using System.Threading.Tasks;
 
 class BorkScanner
 {
+    //  Objects to help manage writing to console with multiple threads
     private static readonly object _consoleLock = new object();
+    private static DateTime _lastProgressUpdate = DateTime.MinValue;
+    private static readonly TimeSpan _progressInterval = TimeSpan.FromMilliseconds(250); // Update progress bar ~4x/sec
 
     static async Task Main(string[] args)
     {
@@ -265,9 +269,17 @@ class BorkScanner
                 else if (minor) minorErrors.Add((file, errorInfo));
                 else cleanFiles.Add(file);
 
-                // Safely increment across threads
-                Interlocked.Increment(ref processedFiles);
-                UpdateProgressBar();
+                // Safely increment and update progress occasionally
+                int processed = Interlocked.Increment(ref processedFiles);
+                var now = DateTime.UtcNow;
+                if ((now - _lastProgressUpdate) > _progressInterval || processed == allFiles.Count)
+                {
+                    lock (_consoleLock)
+                    {
+                        UpdateProgressBar();
+                        _lastProgressUpdate = now;
+                    }
+                }
             }
             finally
             {

@@ -1,10 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType> <!-- Exe is needed for a tool -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>BorkScanner</ToolCommandName>
+    <PackageOutputPath>nupkg</PackageOutputPath>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>BorkScanner</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>KogaraDigital</Authors>
+    <Company>KogaraDigital</Company>
+    <Description>Fast, multi-threaded CLI tool for scanning video files for corruption using FFmpeg.</Description>
+    <PackageTags>video;scan;ffmpeg;cli;tool</PackageTags>
+    <RepositoryUrl>https://github.com/KogaraDigital/BorkScanner</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/KogaraDigital/BorkScanner</PackageProjectUrl>
+    <!-- <PackageIcon>icon.png</PackageIcon> optional, must exist in the project -->
+
+
   </PropertyGroup>
 
   <ItemGroup>
