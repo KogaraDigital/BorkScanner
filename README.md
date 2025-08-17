@@ -28,24 +28,28 @@ Currently only for Linux, Windows version in progress.
 ---
 
 ## Installation
-### Download
+### Download and make executable
 
 ``` bash
-wget -L https://github.com/KogaraDigital/BorkScanner/releases/download//BorkScanner
+wget -L https://github.com/KogaraDigital/BorkScanner/releases/download/v0.0.1/BorkScanner
 chmod +x BorkScanner
 ```
-
-### Extract
-
-```bash
-tar xzvf BorkScanner.v0.0.1_linux.tar.gz
-```
-
 ### Run
  ```bash
 ./BorkScanner
 ```
 
-No chmod is needed if using the tarball.
+### Usage 
+```bash
+BorkScanner <directory> [full|fast] [--filethreads <int>] [--ffmpeginstances <int>] [--recursive|--norecursive]
+```
+
+### Arguments:
+  - <directory>              Directory to scan (required)
+  - full|fast                Scan mode. 'full' = entire file, 'fast' = first frame only (default: full)
+  - --filethreads <int>       Number of file-processing threads (default: logical processors / 2)
+  - --ffmpeginstances <int>   Max number of concurrent ffmpeg processes (default: 4)
+  - --recursive               Scan subdirectories (default)
+  - --norecursive             Disable scanning subdirectories
 
 
