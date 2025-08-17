@@ -1,0 +1,15 @@
+{
+  "VideoExtensions": [
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".mov",
+    ".webm"
+  ],
+  "ProgressBarWidth": 30,
+  "ProgressUpdateIntervalMs": 250,
+  "DefaultScanMode": "fast",
+  "DefaultFileThreads": 4,
+  "DefaultFfmpegInstances": 2,
+  "RecursiveByDefault": false
+}

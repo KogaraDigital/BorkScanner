@@ -12,11 +12,28 @@ public class Scanner
     // Static cache for error patterns loaded from external files
     private static List<string>? _majorPatterns = null;
     private static List<string>? _minorPatterns = null;
+    // Configuration for the scanner
+    private static readonly ScannerConfig _config = ScannerConfig.Load();
+    // Start time of the scan
+    private DateTime _scanStartTime;
+    // Queue of processed file times for ETA calculation
+    private readonly Queue<(DateTime timestamp, TimeSpan duration)> _processingTimes = new Queue<(DateTime, TimeSpan)>();
+    private const int MAX_TIMES_TO_TRACK = 30; // Track more samples for smoother average
+    private const int RECENT_WEIGHT = 3; // Weight recent samples more heavily
 
     // Helper to load patterns from a file
+    private static string FormatTimeSpan(TimeSpan span)
+    {
+        if (span.TotalHours >= 1)
+            return $"{(int)span.TotalHours}h {span.Minutes}m";
+        if (span.TotalMinutes >= 1)
+            return $"{span.Minutes}m {span.Seconds}s";
+        return $"{span.Seconds}s";
+    }
+
     private static List<string> LoadPatterns(string fileName)
     {
-    var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "src", fileName);
+        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "src", fileName);
         if (File.Exists(path))
             return File.ReadAllLines(path).Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l.Trim().ToLowerInvariant()).ToList();
         return new List<string>();
@@ -42,9 +59,9 @@ public class Scanner
 
     public async Task RunAsync()
     {
-    // Supported video file extensions
-    var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    { ".mp4", ".mkv", ".avi", ".mov", ".webm" };
+        _scanStartTime = DateTime.Now;
+        // Use video extensions from config
+        var videoExtensions = new HashSet<string>(_config.VideoExtensions, StringComparer.OrdinalIgnoreCase);
 
         // Find all video files in the target directory
         List<string> allFiles;
@@ -126,6 +143,37 @@ public class Scanner
 
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write($"{percent * 100:0.0}% | ");
+
+                // Calculate and display time remaining
+                var elapsed = DateTime.Now - _scanStartTime;
+                string timeInfo;
+                if (_processingTimes.Count > 0)
+                {
+                    // Calculate weighted moving average
+                    var currentTime = DateTime.Now;
+                    double totalWeight = 0;
+                    double weightedTicks = 0;
+                    
+                    foreach (var (timestamp, duration) in _processingTimes)
+                    {
+                        // More recent samples get higher weight
+                        double age = (currentTime - timestamp).TotalMinutes;
+                        double weight = Math.Exp(-age) * RECENT_WEIGHT + 1;
+                        
+                        weightedTicks += duration.Ticks * weight;
+                        totalWeight += weight;
+                    }
+
+                    var avgTimePerFile = TimeSpan.FromTicks((long)(weightedTicks / totalWeight));
+                    var remainingFiles = totalFiles - processedFiles;
+                    var estimatedRemaining = TimeSpan.FromTicks(avgTimePerFile.Ticks * remainingFiles);
+                    timeInfo = $"ETA: {FormatTimeSpan(estimatedRemaining)} | ";
+                }
+                else
+                {
+                    timeInfo = $"Elapsed: {FormatTimeSpan(elapsed)} | ";
+                }
+                Console.Write(timeInfo);
 
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.Write($"Major: {majorErrors.Count} | ");
@@ -224,6 +272,7 @@ public class Scanner
             }
             try
             {
+                var fileStartTime = DateTime.Now;
                 bool major = false;
                 bool minor = false;
                 string errorInfo = "";
@@ -297,15 +346,25 @@ public class Scanner
                 else if (minor) minorErrors.Add((file, errorInfo));
                 else cleanFiles.Add(file);
 
+                // Track processing time
+                var now = DateTime.Now;
+                var processingTime = now - fileStartTime;
+                lock (_consoleLock)
+                {
+                    _processingTimes.Enqueue((now, processingTime));
+                    while (_processingTimes.Count > MAX_TIMES_TO_TRACK)
+                        _processingTimes.Dequeue();
+                }
+
                 // Update progress bar if needed
                 int processed = Interlocked.Increment(ref processedFiles);
-                var now = DateTime.UtcNow;
-                if ((now - _lastProgressUpdate) > _progressInterval || processed == allFiles.Count)
+                var updateTime = DateTime.UtcNow;
+                if ((updateTime - _lastProgressUpdate) > _progressInterval || processed == allFiles.Count)
                 {
                     lock (_consoleLock)
                     {
                         UpdateProgressBar();
-                        _lastProgressUpdate = now;
+                        _lastProgressUpdate = updateTime;
                     }
                 }
             }

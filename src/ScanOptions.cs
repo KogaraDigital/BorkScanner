@@ -4,19 +4,30 @@ using System.Linq;
 
 public class ScanOptions
 {
+    private static readonly ScannerConfig _config = ScannerConfig.Load();
+
     // Directory to scan for video files
     public string? Directory { get; set; }
     // Scan mode: "full" or "fast"
-    public string ScanMode { get; set; } = "full";
+    public string ScanMode { get; set; }
     // Number of file-processing threads
-    public int FileThreads { get; set; } = Environment.ProcessorCount / 2;
+    public int FileThreads { get; set; }
     // Max number of concurrent ffmpeg processes
-    public int FfmpegInstances { get; set; } = 4;
+    public int FfmpegInstances { get; set; }
     // Whether to scan subdirectories
-    public bool Recursive { get; set; } = true;
+    public bool Recursive { get; set; }
+
+    public ScanOptions()
+    {
+        // Initialize with defaults from config
+        ScanMode = _config.DefaultScanMode;
+        FileThreads = _config.DefaultFileThreads;
+        FfmpegInstances = _config.DefaultFfmpegInstances;
+        Recursive = _config.RecursiveByDefault;
+    }
 
     // Parses command line arguments into a ScanOptions object
-    public static ScanOptions Parse(string[] args)
+    public static ScanOptions? Parse(string[] args)
     {
         if (args.Length < 1 || string.IsNullOrWhiteSpace(args[0])) return null;
         var options = new ScanOptions { Directory = args[0] };
