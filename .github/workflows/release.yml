@@ -35,32 +35,54 @@ jobs:
         shell: bash
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-build
           path: publish/
+          compression-level: 9
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           path: artifacts
 
+      - name: Install zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+
       - name: Create ZIP archives
         run: |
-          cd artifacts/ubuntu-latest-build/linux && zip -r ../../BorkScanner-linux-x64.zip .
-          cd ../../windows-latest-build/windows && zip -r ../../BorkScanner-windows-x64.zip .
+          mkdir -p release-files
+          # Linux build
+          if [ -d "artifacts/ubuntu-latest-build/linux" ]; then
+            cd artifacts/ubuntu-latest-build/linux
+            zip -r ../../../release-files/BorkScanner-linux-x64.zip ./*
+            cd ../../..
+          else
+            echo "Warning: Linux build directory not found"
+          fi
+          
+          # Windows build
+          if [ -d "artifacts/windows-latest-build/windows" ]; then
+            cd artifacts/windows-latest-build/windows
+            zip -r ../../../release-files/BorkScanner-windows-x64.zip ./*
+            cd ../../..
+          else
+            echo "Warning: Windows build directory not found"
+          fi
 
       - name: Create GitHub release and upload assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            BorkScanner-windows-x64.zip
-            BorkScanner-linux-x64.zip
+            release-files/BorkScanner-windows-x64.zip
+            release-files/BorkScanner-linux-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
