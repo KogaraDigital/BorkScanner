@@ -102,6 +102,9 @@ public class Scanner
     // Thread-safe dictionary to track files currently being processed
     var currentlyProcessing = new ConcurrentDictionary<string, byte>();
 
+    // Array to track which file each thread is processing
+    var threadFiles = new string?[_options.FileThreads];
+
         void UpdateProgressBar()
         {
             // Update the progress bar and file display in-place
@@ -164,6 +167,21 @@ public class Scanner
                         Console.Write(new string(' ', Console.WindowWidth));
                     }
                 }
+                // Display thread-specific file processing
+                for (int i = 0; i < _options.FileThreads; i++)
+                {
+                    int fileLine = safeProgressBarTop + 2 + i;
+                    if (fileLine < Console.BufferHeight)
+                    {
+                        Console.SetCursorPosition(0, fileLine);
+                        Console.Write(new string(' ', Console.WindowWidth)); // Clear line
+                        Console.SetCursorPosition(0, fileLine);
+                        if (threadFiles[i] != null)
+                        {
+                            Console.Write($"Thread {i + 1}: {Path.GetFileName(threadFiles[i])}");
+                        }
+                    }
+                }
                 Console.ResetColor();
                 // Move cursor below display
                 int endLine = safeProgressBarTop + displayLines;
@@ -185,8 +203,21 @@ public class Scanner
         // Create and start scan tasks for each file
         var tasks = allFiles.Select(async file =>
         {
+            int threadIndex = -1;
             await semaphore.WaitAsync(); // Wait for file thread slot
-            currentlyProcessing[file] = 0; // Mark file as processing
+            // Find an available thread slot
+            lock (_consoleLock)
+            {
+                for (int i = 0; i < threadFiles.Length; i++)
+                {
+                    if (threadFiles[i] == null)
+                    {
+                        threadFiles[i] = file;
+                        threadIndex = i;
+                        break;
+                    }
+                }
+            }
             try
             {
                 bool major = false;
@@ -276,7 +307,14 @@ public class Scanner
             }
             finally
             {
-                currentlyProcessing.TryRemove(file, out _); // Remove file from processing
+                // Clear thread slot when done
+                if (threadIndex >= 0)
+                {
+                    lock (_consoleLock)
+                    {
+                        threadFiles[threadIndex] = null;
+                    }
+                }
                 semaphore.Release(); // Release file thread slot
             }
         });
