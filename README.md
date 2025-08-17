@@ -2,7 +2,7 @@
 
 BorkScanner is a fast, multi-threaded CLI tool for scanning video files for corruption using FFmpeg. It supports full or quick scans, concurrent processing, and outputs detailed logs of any errors found.
 
-Currently only for Linux, Windows version in progress.
+Currently only for Linux, Windows version coming soon.
 
 ---
 
@@ -26,24 +26,25 @@ Currently only for Linux, Windows version in progress.
 ---
 
 ## Installation
-### Download and make executable
+
+### NuGet (Recommended)
+##### Requires .NET SDK installed.
+
+```bash
+dotnet tool install --global BorkScanner
+```
+
+### Wget
 
 ``` bash
 wget -L https://github.com/KogaraDigital/BorkScanner/releases/download/v0.0.1/BorkScanner
 chmod +x BorkScanner
 ```
-### Run
- ```bash
-./BorkScanner
-```
 
-### Usage 
+## Usage 
 ```bash
 BorkScanner <directory> [full|fast] [--filethreads <int>] [--ffmpeginstances <int>] [--recursive|--norecursive]
-```
 
-### Arguments:
-```bash
   - <directory>              Directory to scan (required)
   - full|fast                Scan mode. 'full' = entire file, 'fast' = first frame only (default: full)
   - --filethreads <int>       Number of file-processing threads (default: logical processors / 2)
