@@ -1,0 +1,41 @@
+ebml header parsing failed
+invalid data found when processing input
+error opening input file
+error opening input files
+moov atom not found
+could not find codec parameters
+could not find stream information
+error reading header
+error reading packet
+error while decoding frame
+error while seeking
+invalid argument
+corrupt file
+file is not a valid
+input/output error
+no such file or directory
+permission denied
+unsupported codec
+unsupported format
+stream error
+error reading
+error opening
+error closing
+error occurred
+invalid header
+invalid stream
+invalid file
+invalid frame
+invalid packet
+invalid sample
+invalid chunk
+invalid atom
+invalid box
+invalid index
+invalid size
+invalid position
+invalid value
+invalid data
+invalid input
+invalid output
+invalid as first byte of an ebml number

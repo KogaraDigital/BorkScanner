@@ -1,0 +1,23 @@
+deprecated
+non-monotonically increasing
+non-strictly increasing
+invalid pts
+invalid dts
+invalid timestamp
+invalid duration
+invalid aspect ratio
+invalid color
+invalid sample rate
+invalid channel layout
+invalid as f
+invalid value
+invalid option
+invalid flag
+invalid parameter
+invalid metadata
+invalid tag
+invalid stream index
+invalid stream id
+invalid stream type
+invalid stream key
+invalid stream specifier
