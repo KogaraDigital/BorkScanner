@@ -21,19 +21,16 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Find .csproj
-        id: find_csproj
-        run: echo "CSProj=$(find . -name '*.csproj' | head -n 1)" >> $GITHUB_ENV
-
+      # Use explicit path for csproj since project is now in src/
       - name: Restore dependencies
-        run: dotnet restore ${{ env.CSProj }}
+        run: dotnet restore src/BorkScanner.csproj
 
       - name: Build and publish
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            dotnet publish ${{ env.CSProj }} -c Release -r linux-x64 --self-contained -o ./publish/linux
+            dotnet publish src/BorkScanner.csproj -c Release -r linux-x64 --self-contained -o ./src/publish/linux
           else
-            dotnet publish ${{ env.CSProj }} -c Release -r win-x64 --self-contained -o ./publish/windows
+            dotnet publish src/BorkScanner.csproj -c Release -r win-x64 --self-contained -o ./src/publish/windows
           fi
         shell: bash
 
@@ -44,25 +41,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Create GitHub release
-        id: create_release
+      - name: Create GitHub release and upload assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows executable
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./publish/windows/BorkScanner.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Linux executable
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./publish/linux/BorkScanner
+          files: |
+            ./src/publish/windows/BorkScanner.exe
+            ./src/publish/linux/BorkScanner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -78,15 +63,12 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Find .csproj
-        id: find_csproj
-        run: echo "CSProj=$(find . -name '*.csproj' | head -n 1)" >> $GITHUB_ENV
-
+      # Use explicit path for csproj since project is now in src/
       - name: Restore dependencies
-        run: dotnet restore ${{ env.CSProj }}
+        run: dotnet restore src/BorkScanner.csproj
 
       - name: Pack NuGet
-        run: dotnet pack ${{ env.CSProj }} -c Release -o ./nupkg
+        run: dotnet pack src/BorkScanner.csproj -c Release -o ./nupkg
 
       - name: Push to NuGet
         run: dotnet nuget push ./nupkg/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
