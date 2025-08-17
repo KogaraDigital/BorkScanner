@@ -28,26 +28,39 @@ jobs:
       - name: Build and publish
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            dotnet publish src/BorkScanner.csproj -c Release -r linux-x64 --self-contained -o ./src/publish/linux
+            dotnet publish src/BorkScanner.csproj -c Release -r linux-x64 --self-contained -o ./publish/linux
           else
-            dotnet publish src/BorkScanner.csproj -c Release -r win-x64 --self-contained -o ./src/publish/windows
+            dotnet publish src/BorkScanner.csproj -c Release -r win-x64 --self-contained -o ./publish/windows
           fi
         shell: bash
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.os }}-build
+          path: publish/
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create ZIP archives
+        run: |
+          cd artifacts/ubuntu-latest-build/linux && zip -r ../../BorkScanner-linux-x64.zip .
+          cd ../../windows-latest-build/windows && zip -r ../../BorkScanner-windows-x64.zip .
 
       - name: Create GitHub release and upload assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           files: |
-            ./src/publish/windows/BorkScanner.exe
-            ./src/publish/linux/BorkScanner
+            BorkScanner-windows-x64.zip
+            BorkScanner-linux-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
