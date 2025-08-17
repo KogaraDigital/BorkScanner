@@ -2,7 +2,7 @@
 
 BorkScanner is a fast, multi-threaded CLI tool for scanning video files for corruption using FFmpeg. It supports scanning full files or only checking first frame for speed, concurrent processing, and outputs detailed logs of any errors found.
 
-Currently only for Linux, Windows version coming soon.
+Currently supported for Linux, Windows version coming soon.
 
 ---
 
@@ -45,12 +45,18 @@ chmod +x BorkScanner
 ```bash
 BorkScanner <directory> [full|fast] [--filethreads <int>] [--ffmpeginstances <int>] [--recursive|--norecursive]
 
-  - <directory>              Directory to scan (required)
-  - full|fast                Scan mode. 'full' = entire file, 'fast' = first frame only (default: full)
+  - <directory>               Directory to scan (required)
+  - full|fast                 Scan mode. 'full' = entire file, 'fast' = first frame only (default: full)
   - --filethreads <int>       Number of file-processing threads (default: logical processors / 2)
   - --ffmpeginstances <int>   Max number of concurrent ffmpeg processes (default: 4)
   - --recursive               Scan subdirectories (default)
   - --norecursive             Disable scanning subdirectories
+```
+
+## Example
+Scan the first frame of all videos in ~/Videos recursively, using 2 file threads and limiting FFmpeg to 3 concurrent instances:
+```bash
+BorkScanner ~/Videos fast --filethreads 2 --ffmpeginstances 3 --recursive
 ```
 
 
