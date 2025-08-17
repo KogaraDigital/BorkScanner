@@ -13,7 +13,7 @@ class BorkScanner
     //  Objects to help manage writing to console with multiple threads
     private static readonly object _consoleLock = new object();
     private static DateTime _lastProgressUpdate = DateTime.MinValue;
-    private static readonly TimeSpan _progressInterval = TimeSpan.FromMilliseconds(500); // Update progress bar ~2x/sec
+    private static readonly TimeSpan _progressInterval = TimeSpan.FromMilliseconds(250); // Update progress bar ~4x/sec
 
     static async Task Main(string[] args)
     {
@@ -149,7 +149,7 @@ class BorkScanner
 
         // Print scan info to console before starting scan
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($"Performing a {scanMode} scan of directory: {Path.GetFullPath(directory)}");
+        Console.WriteLine($"Performing a {scanMode} scan of directory: {directory}");
         Console.WriteLine($"Using {fileThreads} parallel threads, max {ffmpegInstances} FFmpeg processes");
         Console.WriteLine("=== Scan Summary ===");
         Console.WriteLine($"Formats to scan: {string.Join(", ", allExtensions)}");
@@ -198,8 +198,6 @@ class BorkScanner
         {
             Console.WriteLine($"Scanning first file: {allFiles[0]}");
         }
-
-        UpdateProgressBar();    // Print progress bar to screen before scanning first file, otherwise program looks like it's hanging while the first file processes
 
         // Semaphore is used to limit concurrent tasks
         using var semaphore = new SemaphoreSlim(fileThreads);
