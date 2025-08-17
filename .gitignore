@@ -31,10 +31,10 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+[Nn]u[Gg]et/
 
 # Scan results
 BorkScans/
-.github/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
