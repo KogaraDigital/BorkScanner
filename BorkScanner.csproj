@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>BorkScanner</PackageId>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Authors>KogaraDigital</Authors>
     <Company>KogaraDigital</Company>
     <Description>Fast, multi-threaded CLI tool for scanning video files for corruption using FFmpeg.</Description>
