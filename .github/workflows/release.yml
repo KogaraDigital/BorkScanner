@@ -1,0 +1,61 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # Trigger on tags like v0.0.2
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build and publish
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            dotnet publish -c Release -r linux-x64 --self-contained -o ./publish/linux
+          else
+            dotnet publish -c Release -r win-x64 --self-contained -o ./publish/windows
+          fi
+        shell: bash
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BorkScanner-${{ matrix.os }}
+          path: ./publish/*
+
+  nuget:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Pack NuGet
+        run: dotnet pack -c Release -o ./nupkg
+
+      - name: Push to NuGet
+        run: dotnet nuget push ./nupkg/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
