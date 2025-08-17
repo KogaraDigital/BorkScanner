@@ -28,11 +28,11 @@ Currently supported for Linux, Windows version coming soon.
 ## Installation
 
 ### NuGet (Recommended)
-##### Requires .NET SDK installed.
-
+Requires [.NET SDK](https://dotnet.microsoft.com/en-us/download) installed.
 ```bash
 dotnet tool install --global BorkScanner
 ```
+[NuGet website](https://www.nuget.org/packages/BorkScanner/)
 
 ### Wget
 
