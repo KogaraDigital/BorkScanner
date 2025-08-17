@@ -1,5 +1,0 @@
-=== MAJOR ERRORS ===
-
-=== MINOR ERRORS ===
-
-=== CLEAN FILES ===
