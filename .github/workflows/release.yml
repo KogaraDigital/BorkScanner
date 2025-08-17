@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 8.0.x
 
@@ -26,14 +26,15 @@ jobs:
 
       - name: Build and publish
         run: |
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             dotnet publish -c Release -r linux-x64 --self-contained -o ./publish/linux
           else
             dotnet publish -c Release -r win-x64 --self-contained -o ./publish/windows
           fi
+        shell: bash
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: BorkScanner-${{ matrix.os }}
           path: ./publish/*
