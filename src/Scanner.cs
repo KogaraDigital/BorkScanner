@@ -16,7 +16,7 @@ public class Scanner
     // Helper to load patterns from a file
     private static List<string> LoadPatterns(string fileName)
     {
-        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+    var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "src", fileName);
         if (File.Exists(path))
             return File.ReadAllLines(path).Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l.Trim().ToLowerInvariant()).ToList();
         return new List<string>();
