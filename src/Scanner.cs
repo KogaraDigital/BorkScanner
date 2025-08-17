@@ -178,7 +178,11 @@ public class Scanner
                         Console.SetCursorPosition(0, fileLine);
                         if (threadFiles[i] != null)
                         {
-                            Console.Write($"Thread {i + 1}: {Path.GetFileName(threadFiles[i])}");
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.Write($"Thread {i + 1}: ");
+                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.Write(Path.GetFileName(threadFiles[i]));
+                            Console.ResetColor();
                         }
                     }
                 }
