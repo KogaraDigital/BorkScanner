@@ -35,7 +35,7 @@ dotnet tool install --global BorkScanner
 ### Wget
 
 ``` bash
-wget -L https://github.com/KogaraDigital/BorkScanner/releases/download/v0.1.4/BorkScanner
+wget -L https://github.com/KogaraDigital/BorkScanner/releases/download/v0.0.1/BorkScanner
 chmod +x BorkScanner
 ```
 
